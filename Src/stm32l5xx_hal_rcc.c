@@ -1802,6 +1802,12 @@ uint32_t HAL_RCC_GetResetSource(void)
   * @note   Secure and non-secure attributes can only be set from the secure
   *         state when the system implements the security (TZEN=1).
   * @note   Security and privilege attributes can be set independently.
+  * @note As the privileged attribute concerns all secure and non-secure 
+  *       RCC resources accesses and not each RCC individual items access attribute,
+  *       the application must ensure that the privilege access attribute configuration
+  *       is coherent amongst the security level set on RCC individual items so not to overwrite
+  *       a previous more restricted access rule (consider either all secure and non-secure RCC resources 
+  *       accesses by privileged-only transactions or privileged and unprivileged transactions)
   * @param  Item Item(s) to set attributes on.
   *         This parameter can be a one or a combination of @ref RCC_items
   * @param  Attributes can be one or a combination of the following values:
