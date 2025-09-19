@@ -4094,8 +4094,11 @@ static HAL_StatusTypeDef SPI_WaitFifoStateUntilTimeout(SPI_HandleTypeDef *hspi, 
       {
         tmp_timeout = 0U;
       }
+      else
+      {
       count--;
     }
+  }
   }
 
   return HAL_OK;
