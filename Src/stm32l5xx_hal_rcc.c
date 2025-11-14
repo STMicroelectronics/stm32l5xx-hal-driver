@@ -1360,7 +1360,7 @@ HAL_StatusTypeDef HAL_RCC_ClockConfig(const RCC_ClkInitTypeDef  *RCC_ClkInitStru
   *            @arg @ref RCC_MCO1SOURCE_SYSCLK  system  clock selected as MCO source
   *            @arg @ref RCC_MCO1SOURCE_MSI  MSI clock selected as MCO source
   *            @arg @ref RCC_MCO1SOURCE_HSI  HSI clock selected as MCO source
-  *            @arg @ref RCC_MCO1SOURCE_HSE  HSE clock selected as MCO sourcee
+  *            @arg @ref RCC_MCO1SOURCE_HSE  HSE clock selected as MCO source
   *            @arg @ref RCC_MCO1SOURCE_PLLCLK  main PLL clock selected as MCO source
   *            @arg @ref RCC_MCO1SOURCE_LSI  LSI clock selected as MCO source
   *            @arg @ref RCC_MCO1SOURCE_LSE  LSE clock selected as MCO source
@@ -2045,9 +2045,9 @@ static uint32_t RCC_GetSysClockFreqFromPLLSource(void)
       { /* MSIRANGE from RCC_CR applies */
         msirange = READ_BIT(RCC->CR, RCC_CR_MSIRANGE) >> RCC_CR_MSIRANGE_Pos;
       }
-        /*MSI frequency range in HZ*/
-        pllvco = MSIRangeTable[msirange];
-        break;
+      /*MSI frequency range in HZ*/
+      pllvco = MSIRangeTable[msirange];
+      break;
     default:
       /* unexpected */
       pllvco = 0;

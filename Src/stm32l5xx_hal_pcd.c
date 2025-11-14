@@ -49,6 +49,9 @@
      (#)Enable PCD transmission and reception:
          (##) HAL_PCD_Start();
 
+     (#)NOTE: For applications not using double buffer mode, define the symbol
+               'USE_USB_DOUBLE_BUFFER' as 0 to reduce the driver's memory footprint.
+
   @endverbatim
   ******************************************************************************
   */
@@ -1389,7 +1392,7 @@ HAL_StatusTypeDef HAL_PCD_SetAddress(PCD_HandleTypeDef *hpcd, uint8_t address)
 HAL_StatusTypeDef HAL_PCD_EP_Open(PCD_HandleTypeDef *hpcd, uint8_t ep_addr,
                                   uint16_t ep_mps, uint8_t ep_type)
 {
-  HAL_StatusTypeDef  ret = HAL_OK;
+  HAL_StatusTypeDef ret = HAL_OK;
   PCD_EPTypeDef *ep;
 
   if ((ep_addr & 0x80U) == 0x80U)
@@ -1404,7 +1407,7 @@ HAL_StatusTypeDef HAL_PCD_EP_Open(PCD_HandleTypeDef *hpcd, uint8_t ep_addr,
   }
 
   ep->num = ep_addr & EP_ADDR_MSK;
-  ep->maxpacket = ep_mps;
+  ep->maxpacket = (uint32_t)ep_mps & 0x7FFU;
   ep->type = ep_type;
 
   /* Set initial data PID. */
@@ -1770,6 +1773,18 @@ static HAL_StatusTypeDef PCD_EP_ISR_Handler(PCD_HandleTypeDef *hpcd)
           /* Get SETUP Packet */
           ep->xfer_count = PCD_GET_EP_RX_CNT(hpcd->Instance, ep->num);
 
+          if (ep->xfer_count != 8U)
+          {
+            /* Set Stall condition for EP0 IN/OUT */
+            PCD_SET_EP_RX_STATUS(hpcd->Instance, PCD_ENDP0, USB_EP_RX_STALL);
+            PCD_SET_EP_TX_STATUS(hpcd->Instance, PCD_ENDP0, USB_EP_TX_STALL);
+
+            /* SETUP bit kept frozen while CTR_RX = 1 */
+            PCD_CLEAR_RX_EP_CTR(hpcd->Instance, PCD_ENDP0);
+
+            return HAL_OK;
+          }
+
           USB_ReadPMA(hpcd->Instance, (uint8_t *)hpcd->Setup,
                       ep->pmaadress, (uint16_t)ep->xfer_count);
 
@@ -1790,26 +1805,27 @@ static HAL_StatusTypeDef PCD_EP_ISR_Handler(PCD_HandleTypeDef *hpcd)
           /* Get Control Data OUT Packet */
           ep->xfer_count = PCD_GET_EP_RX_CNT(hpcd->Instance, ep->num);
 
-          if ((ep->xfer_count != 0U) && (ep->xfer_buff != 0U))
+          if (ep->xfer_count == 0U)
           {
-            USB_ReadPMA(hpcd->Instance, ep->xfer_buff,
-                        ep->pmaadress, (uint16_t)ep->xfer_count);
-
-            ep->xfer_buff += ep->xfer_count;
-
-            /* Process Control Data OUT Packet */
-#if (USE_HAL_PCD_REGISTER_CALLBACKS == 1U)
-            hpcd->DataOutStageCallback(hpcd, 0U);
-#else
-            HAL_PCD_DataOutStageCallback(hpcd, 0U);
-#endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
-          }
-
-          wEPVal = (uint16_t)PCD_GET_ENDPOINT(hpcd->Instance, PCD_ENDP0);
-
-          if (((wEPVal & USB_EP_SETUP) == 0U) && ((wEPVal & USB_EP_RX_STRX) != USB_EP_RX_VALID))
-          {
+            /* Status phase re-arm for next setup */
             PCD_SET_EP_RX_STATUS(hpcd->Instance, PCD_ENDP0, USB_EP_RX_VALID);
+          }
+          else
+          {
+            if (ep->xfer_buff != 0U)
+            {
+              USB_ReadPMA(hpcd->Instance, ep->xfer_buff,
+                          ep->pmaadress, (uint16_t)ep->xfer_count);  /* max 64bytes */
+
+              ep->xfer_buff += ep->xfer_count;
+
+              /* Process Control Data OUT Packet */
+#if (USE_HAL_PCD_REGISTER_CALLBACKS == 1U)
+              hpcd->DataOutStageCallback(hpcd, 0U);
+#else
+              HAL_PCD_DataOutStageCallback(hpcd, 0U);
+#endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
+            }
           }
         }
       }
@@ -1875,7 +1891,6 @@ static HAL_StatusTypeDef PCD_EP_ISR_Handler(PCD_HandleTypeDef *hpcd)
 
         /* multi-packet on the NON control OUT endpoint */
         ep->xfer_count += count;
-        ep->xfer_buff += count;
 
         if ((ep->xfer_len == 0U) || (count < ep->maxpacket))
         {
@@ -1888,6 +1903,7 @@ static HAL_StatusTypeDef PCD_EP_ISR_Handler(PCD_HandleTypeDef *hpcd)
         }
         else
         {
+          ep->xfer_buff += count;
           (void)USB_EPStartXfer(hpcd->Instance, ep);
         }
       }
@@ -2242,13 +2258,11 @@ static HAL_StatusTypeDef HAL_PCD_EP_DB_Transmit(PCD_HandleTypeDef *hpcd,
 #endif /* (USE_USB_DOUBLE_BUFFER == 1U) */
 
 
-
 /**
   * @}
   */
 #endif /* defined (USB) */
 #endif /* HAL_PCD_MODULE_ENABLED */
-
 /**
   * @}
   */
